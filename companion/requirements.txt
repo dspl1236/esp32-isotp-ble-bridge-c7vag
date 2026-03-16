@@ -1,2 +1,0 @@
-bleak>=0.21.0
-pyinstaller>=6.0
