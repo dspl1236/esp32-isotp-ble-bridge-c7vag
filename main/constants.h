@@ -21,6 +21,10 @@ typedef int16_t							bool16;
 #define BRG_SETTING_BLE_MULTI_DELAY		6
 #define BRG_SETTING_PASSWORD			7
 #define BRG_SETTING_GAP					8
+// Raw CAN sniff — forward every received frame to BLE/UART before ISO-TP
+// filtering. Payload: [id_hi][id_lo][dlc][d0..d7]. txID=rxID=BLE_RAW_SNIFF_ID.
+#define BRG_SETTING_RAW_SNIFF			9
+#define BLE_RAW_SNIFF_ID				0xCAFE
 
 #define TASK_STACK_SIZE					3072 //2048
 
