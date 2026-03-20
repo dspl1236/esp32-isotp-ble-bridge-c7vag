@@ -1,16 +1,12 @@
 name: Build Firmware
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'main/**'
-      - 'CMakeLists.txt'
-      - 'partitions.csv'
-      - 'sdkconfig.defaults'
+  # Firmware build requires Switchleg1 base source + our additions.
+  # Currently triggered manually only — enable push trigger once
+  # full source compilation is verified locally.
+  workflow_dispatch:
   release:
     types: [created]
-  workflow_dispatch:
 
 jobs:
   build-ble:
@@ -31,8 +27,8 @@ jobs:
       - name: Collect BLE binaries
         run: |
           mkdir -p dist
-          cp build/isotp_bridge.bin              dist/funkbridge-ble.bin
-          cp build/bootloader/bootloader.bin     dist/bootloader.bin
+          cp build/isotp_bridge.bin                    dist/funkbridge-ble.bin
+          cp build/bootloader/bootloader.bin           dist/bootloader.bin
           cp build/partition_table/partition-table.bin dist/partition-table.bin
           echo "$(git describe --tags --always --dirty)-BLE" > dist/VERSION-BLE.txt
 
@@ -40,6 +36,7 @@ jobs:
         with:
           name: firmware-ble
           path: dist/
+          retention-days: 90
 
       - name: Attach to release
         if: github.event_name == 'release'
@@ -79,33 +76,28 @@ jobs:
         with:
           esp_idf_version: v5.2.1
           target: esp32
-          command: >
-            idf.py
-            -DCONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE=1
-            build
+          command: idf.py -DCONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE=1 build
 
       - name: Build SPIFFS image
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.2.1
           target: esp32
-          command: >
-            python $IDF_PATH/components/spiffs/spiffsgen.py
-            0x130000 web spiffs.bin
+          command: python $IDF_PATH/components/spiffs/spiffsgen.py 0x130000 web spiffs.bin
 
       - name: Collect WiFi binaries
         run: |
           mkdir -p dist-wifi
           cp build/isotp_bridge.bin   dist-wifi/funkbridge-ap.bin
-          cp spiffs.bin               dist-wifi/funkbridge-spiffs.bin
-          # Station uses same app binary, different NVS default
           cp build/isotp_bridge.bin   dist-wifi/funkbridge-sta.bin
+          cp spiffs.bin               dist-wifi/funkbridge-spiffs.bin
           echo "$(git describe --tags --always --dirty)-WIFI" > dist-wifi/VERSION-WIFI.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: firmware-wifi
           path: dist-wifi/
+          retention-days: 90
 
       - name: Attach to release
         if: github.event_name == 'release'
