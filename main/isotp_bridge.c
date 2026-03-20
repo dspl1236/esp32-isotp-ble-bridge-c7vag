@@ -23,6 +23,7 @@
 #include "uart.h"
 #include "connection_handler.h"
 #include "isotp_bridge.h"
+#include "wifi_server.h"
 
 #define BRIDGE_TAG 					"Bridge"
 
@@ -124,6 +125,9 @@ void write_password(char* data)
 
 void send_packet(uint32_t txID, uint32_t rxID, uint8_t flags, const void* src, size_t size)
 {
+	/* WiFi WebSocket — push to ring buffer (non-blocking, safe from any task) */
+	wifi_server_push_frame((uint16_t)txID, (uint16_t)rxID, (const uint8_t*)src, size);
+
 	if(ble_connected()) {
 		ble_send(txID, rxID, flags, src, size);
 	} else {
@@ -806,6 +810,21 @@ void ch_on_uart_disconnect()
 void bridge_received_ble(const void* src, size_t size)
 {
 	packet_received(src, size);
+}
+
+/* Called by wifi_server when a WebSocket frame arrives */
+void bridge_received_wifi(uint16_t tx_id, uint16_t rx_id,
+                          const uint8_t *data, size_t len)
+{
+	uint8_t buf[4096 + 8];
+	if (len + 8 > sizeof(buf)) return;
+	buf[0] = 0xF1;
+	buf[1] = 0x00;
+	buf[2] = rx_id & 0xFF; buf[3] = (rx_id >> 8) & 0xFF;
+	buf[4] = tx_id & 0xFF; buf[5] = (tx_id >> 8) & 0xFF;
+	buf[6] = len   & 0xFF; buf[7] = (len   >> 8) & 0xFF;
+	memcpy(buf + 8, data, len);
+	packet_received(buf, len + 8);
 }
 
 int32_t	bridge_send_isotp(send_message_t *msg)
