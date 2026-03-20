@@ -6,44 +6,40 @@ on:
     paths:
       - 'main/**'
       - 'CMakeLists.txt'
+      - 'partitions.csv'
+      - 'sdkconfig.defaults'
   release:
     types: [created]
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build ESP32 firmware
+  build-ble:
+    name: Build BLE firmware
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup ESP-IDF
+      - name: Build BLE firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.2.1
           target: esp32
           command: idf.py build
 
-      - name: Collect binaries
+      - name: Collect BLE binaries
         run: |
           mkdir -p dist
           cp build/isotp_bridge.bin              dist/funkbridge-ble.bin
           cp build/bootloader/bootloader.bin     dist/bootloader.bin
           cp build/partition_table/partition-table.bin dist/partition-table.bin
-          # Version tag
-          echo "$(git describe --tags --always --dirty)" > dist/VERSION.txt
-          cat dist/VERSION.txt
+          echo "$(git describe --tags --always --dirty)-BLE" > dist/VERSION-BLE.txt
 
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: firmware-ble
           path: dist/
-          retention-days: 90
 
       - name: Attach to release
         if: github.event_name == 'release'
@@ -53,4 +49,70 @@ jobs:
             dist/funkbridge-ble.bin
             dist/bootloader.bin
             dist/partition-table.bin
-            dist/VERSION.txt
+            dist/VERSION-BLE.txt
+
+  build-wifi:
+    name: Build WiFi firmware (AP + Station)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install minify-html
+        run: pip install minify-html requests
+
+      - name: Fetch VAG-CP PWA for SPIFFS
+        run: |
+          mkdir -p web
+          curl -sL https://dspl1236.github.io/VAG-CP-Docs/ -o /tmp/pwa.html
+          python3 -c "
+          import minify_html, pathlib
+          src = pathlib.Path('/tmp/pwa.html').read_text()
+          out = minify_html.minify(src, minify_js=True, minify_css=True)
+          pathlib.Path('web/index.html').write_text(out)
+          print(f'PWA: {len(src):,} -> {len(out):,} bytes')
+          "
+
+      - name: Build WiFi AP firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.2.1
+          target: esp32
+          command: >
+            idf.py
+            -DCONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE=1
+            build
+
+      - name: Build SPIFFS image
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.2.1
+          target: esp32
+          command: >
+            python $IDF_PATH/components/spiffs/spiffsgen.py
+            0x130000 web spiffs.bin
+
+      - name: Collect WiFi binaries
+        run: |
+          mkdir -p dist-wifi
+          cp build/isotp_bridge.bin   dist-wifi/funkbridge-ap.bin
+          cp spiffs.bin               dist-wifi/funkbridge-spiffs.bin
+          # Station uses same app binary, different NVS default
+          cp build/isotp_bridge.bin   dist-wifi/funkbridge-sta.bin
+          echo "$(git describe --tags --always --dirty)-WIFI" > dist-wifi/VERSION-WIFI.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-wifi
+          path: dist-wifi/
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist-wifi/funkbridge-ap.bin
+            dist-wifi/funkbridge-sta.bin
+            dist-wifi/funkbridge-spiffs.bin
+            dist-wifi/VERSION-WIFI.txt
