@@ -1,88 +1,119 @@
-# esp32-isotp-ble-bridge — C7 VAG fork
+# esp32-isotp-ble-bridge-c7vag
 
-Fork of [Switchleg1/esp32-isotp-ble-bridge](https://github.com/Switchleg1/esp32-isotp-ble-bridge)
-/ [bri3d/esp32-isotp-ble-bridge](https://github.com/bri3d/esp32-isotp-ble-bridge).
+**Fork of [Switchleg1/esp32-isotp-ble-bridge](https://github.com/Switchleg1/esp32-isotp-ble-bridge)**  
+Customised for C7 Audi A6/A7/A8 (VAG platform) with WiFi support and raw CAN sniff mode.
 
-Adds a **C7 VAG build profile** for the Audi A6/A7/A8 (4G/4H platform) alongside the
-original MQB Simos18/DQ250 tuning profile. Also adds a **raw CAN sniff mode** useful
-for protocol research. No other changes to the tool's intent — this is still a BLE↔ISO-TP
-bridge and J2534 device, nothing more.
-
-Higher-level tooling (UDS client, CAL parser, J533 probe, companion app) lives in
-[simos-suite](https://github.com/dspl1236/simos-suite).
+Part of the [simos-suite](https://github.com/dspl1236/simos-suite) open-source VAG diagnostic platform.
 
 ---
 
-## What changed vs upstream
+## Flash with FunkFlash-ESP
 
-### 1. `PROFILE_C7_VAG` build flag
+The easiest way to flash this firmware is with **[FunkFlash-ESP](https://github.com/dspl1236/FunkFlash-ESP)** —  
+a one-click cross-platform flasher for Windows, macOS, and Linux.  
+No Python, no ESP-IDF, no command line required.
 
-Replaces the four hardcoded MQB containers with eight C7-correct ones:
-
-| Slot | Module | TX→ECU | RX←ECU | Notes |
-|------|--------|--------|--------|-------|
-| 0 | ECU (Simos8.5) | 0x7E0 | 0x7E8 | 3.0T TFSI — primary target for VW_Flash `--simos8` |
-| 1 | TCU (ZF 8HP) | 0x7E1 | 0x7E9 | 8-speed automatic |
-| 2 | J533 Gateway | 0x710 | 0x77A | CAN gateway (CP research — see simos-suite) |
-| 3 | J255 HVAC | 0x746 | 0x7B0 | Climatronic |
-| 4 | J136 Seat Drv | 0x74C | 0x7B6 | Driver seat memory |
-| 5 | J521 Seat Pass | 0x74D | 0x7B7 | Passenger seat memory |
-| 6 | J104 ABS/ESC | 0x760 | 0x768 | Bosch 9.0 |
-| 7 | Broadcast/DTC | 0x700 | 0x7E8 | spare / user-defined |
-
-The MQB profile (Simos18/DQ250/Haldex) is unchanged and remains the default.
-
-### 2. Raw CAN sniff mode (`BRG_SETTING_RAW_SNIFF = 9`)
-
-Send BLE settings command with ID 9, payload `0x01` to enable. When active:
-- Every received CAN frame is forwarded to BLE **before** ISO-TP filtering
-- The `< 0x500` ID filter is bypassed
-- BLE packets arrive with `txID = rxID = 0xCAFE` as a sentinel
-- Frame format: `[id_hi][id_lo][dlc][d0..d7]`
-- ISO-TP processing continues normally in parallel
-
-Disable with payload `0x00`.
+**[→ Download FunkFlash-ESP](https://github.com/dspl1236/FunkFlash-ESP/releases/latest)**
 
 ---
 
-## Building
+## Firmware modes
 
-**Prerequisites:** [ESP-IDF v5.x](https://docs.espressif.com/projects/esp-idf/en/latest/)
+### BLE mode (default)
+- Advertises as `BLE_TO_ISOTP20` via Bluetooth
+- BLE GATT service UUID: `0xABF0`
+- Write characteristic (tester → ESP32): `0xABF1` — write-without-response
+- Notify characteristic (ESP32 → tester): `0xABF2`
+- Compatible with Simos Tools APK, simos-suite, and the VAG-CP PWA
+
+### WiFi AP mode
+- Creates open WiFi network: **FunkBridge**
+- Captive portal: browser opens automatically on connect
+- DNS server catches all queries → `192.168.4.1`
+- Web app served from SPIFFS at `http://192.168.4.1`
+- WebSocket bridge at `ws://192.168.4.1/ws`
+- mDNS: `http://funkbridge.local`
+
+### WiFi Station mode
+- Joins existing WiFi network (credentials set via FunkFlash-ESP)
+- mDNS: `http://funkbridge.local`
+- Falls back to AP mode if network unavailable
+- WebSocket bridge at `ws://funkbridge.local/ws`
+
+**Note:** WiFi and BLE share one radio — they cannot run simultaneously.  
+Use FunkFlash-ESP to switch between modes.
+
+---
+
+## Custom additions (vs upstream)
+
+| Feature | Description |
+|---------|-------------|
+| `BRG_SETTING_RAW_SNIFF = 9` | Forward all raw CAN frames to BLE/WebSocket before ISO-TP filtering |
+| `BLE_RAW_SNIFF_ID = 0xCAFE` | TX/RX ID used for raw sniff frames |
+| `wifi_server.c/h` | Full WiFi subsystem — AP + station + captive portal + mDNS + WebSocket |
+| `FUNKBRIDGE_VERSION` | Version string read by FunkFlash-ESP after flashing |
+| C7 VAG CAN profile | Correct TX/RX IDs for J533, J255, J285, J234, J794, J136 |
+
+---
+
+## Packet framing
+
+Every message is prefixed with an 8-byte header (`ble_header_t`):
+
+```
+Offset  Size  Field
+0       1     hdID     — 0xF1 normal frame
+1       1     cmdFlags — flag bits (BRG_COMMAND_FLAG_*)
+2       2     rxID     — CAN RX address (little-endian)
+4       2     txID     — CAN TX address (little-endian)
+6       2     cmdSize  — payload length (little-endian)
+[8...]        payload  — ISO-TP frame bytes
+```
+
+This format is identical over BLE and WebSocket —  
+the same client code works for both transports.
+
+---
+
+## Build
+
+Requires ESP-IDF v5.2.x:
 
 ```bash
-# MQB profile — original Simos18/DQ250 (default, unchanged)
+git clone https://github.com/dspl1236/esp32-isotp-ble-bridge-c7vag
+cd esp32-isotp-ble-bridge-c7vag
 idf.py build
 idf.py -p /dev/ttyUSB0 flash
-
-# C7 VAG profile — Audi A6/A7/A8 C7 platform
-idf.py build -DPROFILE=C7_VAG
-idf.py -p /dev/ttyUSB0 flash
 ```
+
+Or use the [GitHub Actions CI](.github/workflows/build-firmware.yml) which  
+builds automatically on every push and attaches `.bin` files to releases.
 
 ---
 
 ## Hardware
 
-Works on Macchina A0 or the [AMAleg DIY clone](https://github.com/Switchleg1/AMAleg).
+Designed for the **ESP32 A0 OBD-II bridge** (Switchleg1 hardware):
+- ESP32 dual-core 240MHz, 520KB RAM, 4MB flash
+- TWAI (CAN) controller: TX=GPIO5, RX=GPIO4
+- WS2812 LED: GPIO2
+- Silent mode: GPIO21
+- USB-UART: CP210x (VID `0x10C4`, PID `0xEA60`)
 
-| GPIO | Signal | OBD-II |
-|------|--------|--------|
-| 5 | CAN TX | Pin 6 |
-| 4 | CAN RX | Pin 14 |
-| 21 | Silent (LOW) | — |
-
----
-
-## Supported software
-
-Same as upstream — this fork is a drop-in replacement:
-
-- **[VW_Flash](https://github.com/bri3d/VW_Flash)** — use `--simos8` for the C7 3.0T
-- **[SimosTools](https://play.google.com/store/apps/details?id=com.app.simostools)** — Android
-- Any J2534 software
+Upgrade path: ESP32-S3 (drop-in, more RAM, BLE 5.0, native USB)
 
 ---
 
-## Credits
+## Related
 
-Original firmware by [bri3d](https://github.com/bri3d) and [Switchleg1](https://github.com/Switchleg1).
+- **[FunkFlash-ESP](https://github.com/dspl1236/FunkFlash-ESP)** — Cross-platform flasher for this firmware
+- **[simos-suite](https://github.com/dspl1236/simos-suite)** — Desktop ECU diagnostic tool
+- **[VAG-CP-Docs](https://github.com/dspl1236/VAG-CP-Docs)** — Component Protection research + PWA diagnostic tool
+- **[Switchleg1/esp32-isotp-ble-bridge](https://github.com/Switchleg1/esp32-isotp-ble-bridge)** — Upstream
+
+---
+
+## License
+
+GPL v3 — Right to repair. Use freely.
