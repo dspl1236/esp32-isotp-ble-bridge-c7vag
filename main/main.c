@@ -23,6 +23,7 @@
 #include "uart.h"
 #include "connection_handler.h"
 #include "isotp_bridge.h"
+#include "wifi_server.h"
 
 #define MAIN_TAG	"Main"
 
@@ -63,14 +64,23 @@ void app_main(void)
 #if SLEEP_MODE == 1
 	while(1) {
 #endif
-		//setup BLE server
-		ble_server_callbacks callbacks = {
-			.data_received = bridge_received_ble,
-			.notifications_subscribed = bridge_connect,
-			.notifications_unsubscribed = bridge_disconnect
-		};
+		/* Select transport based on NVS setting */
+		funkbridge_wifi_mode_t wifi_mode = wifi_get_mode();
+		bool use_wifi = (wifi_mode != WIFI_MODE_DISABLED);
 
-		//start tasks
+		if (use_wifi) {
+			wifi_server_set_rx_callback(bridge_received_wifi);
+			wifi_server_start();
+		} else {
+			ble_server_callbacks callbacks = {
+				.data_received = bridge_received_ble,
+				.notifications_subscribed = bridge_connect,
+				.notifications_unsubscribed = bridge_disconnect
+			};
+			ble_server_start(callbacks);
+		}
+
+		//start CAN/ISO-TP tasks (common to both modes)
 		ble_server_start(callbacks);
 		twai_start_task();
 		isotp_start_task();
@@ -82,14 +92,17 @@ void app_main(void)
 		while(ch_take_sleep_sem() != pdTRUE)
 			esp_task_wdt_reset();
 
-		//stop ble connections
-		ble_stop_advertising();
-		while (ble_connected()) {
-			vTaskDelay(pdMS_TO_TICKS(TIMEOUT_NORMAL));
-			esp_task_wdt_reset();
+		//stop transport
+		if (use_wifi) {
+			wifi_server_stop();
+		} else {
+			ble_stop_advertising();
+			while (ble_connected()) {
+				vTaskDelay(pdMS_TO_TICKS(TIMEOUT_NORMAL));
+				esp_task_wdt_reset();
+			}
+			ble_server_stop();
 		}
-	
-		//stop tasks
 		ch_stop_task();
 		uart_stop_task();
 		persist_stop_task();
