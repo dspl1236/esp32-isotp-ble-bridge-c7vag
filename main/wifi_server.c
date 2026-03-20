@@ -334,8 +334,34 @@ static void dns_captive_task(void *arg) {
 
 /* ── WiFi AP mode ─────────────────────────────────────────────────────────── */
 static void start_ap_mode(void) {
-    ESP_LOGI(TAG, "Starting AP mode: SSID=%s", WIFI_AP_SSID);
-    esp_netif_create_default_wifi_ap();
+    ESP_LOGI(TAG, "Starting AP mode: SSID=%s  subnet=/28", WIFI_AP_SSID);
+
+    /* Create AP netif with /28 subnet (255.255.255.240)
+     * Network:   192.168.4.0/28
+     * Gateway:   192.168.4.1  (this device)
+     * DHCP pool: 192.168.4.2 – 192.168.4.14  (14 clients max)
+     * Broadcast: 192.168.4.15
+     */
+    esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
+    esp_netif_ip_info_t ip_info = {
+        .ip      = { .addr = ESP_IP4TOADDR(192, 168, 4,   1) },
+        .netmask = { .addr = ESP_IP4TOADDR(255, 255, 255, 240) }, /* /28 */
+        .gw      = { .addr = ESP_IP4TOADDR(192, 168, 4,   1) },
+    };
+    esp_netif_dhcps_stop(ap_netif);
+    esp_netif_set_ip_info(ap_netif, &ip_info);
+
+    /* DHCP server: hand out .2 through .14 */
+    dhcps_lease_t lease = {
+        .enable      = true,
+        .start_ip    = { .addr = ESP_IP4TOADDR(192, 168, 4,  2) },
+        .end_ip      = { .addr = ESP_IP4TOADDR(192, 168, 4, 14) },
+    };
+    esp_netif_dhcps_option(ap_netif, ESP_NETIF_OP_SET,
+                            ESP_NETIF_REQUESTED_IP_ADDRESS,
+                            &lease, sizeof(lease));
+    esp_netif_dhcps_start(ap_netif);
+
     wifi_config_t cfg = {
         .ap = {
             .ssid            = WIFI_AP_SSID,
@@ -352,7 +378,7 @@ static void start_ap_mode(void) {
     start_mdns();
     start_http_server(true);
     xTaskCreate(dns_captive_task, "dns_captive", 4096, NULL, 2, NULL);
-    ESP_LOGI(TAG, "AP ready: http://192.168.4.1  or  http://funkbridge.local");
+    ESP_LOGI(TAG, "AP ready (192.168.4.0/28): http://192.168.4.1  or  http://funkbridge.local");
 }
 
 /* ── WiFi Station mode ────────────────────────────────────────────────────── */
