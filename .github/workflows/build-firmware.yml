@@ -1,0 +1,56 @@
+name: Build Firmware
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'main/**'
+      - 'CMakeLists.txt'
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ESP32 firmware
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.2.1
+          target: esp32
+          command: idf.py build
+
+      - name: Collect binaries
+        run: |
+          mkdir -p dist
+          cp build/isotp_bridge.bin              dist/funkbridge-ble.bin
+          cp build/bootloader/bootloader.bin     dist/bootloader.bin
+          cp build/partition_table/partition-table.bin dist/partition-table.bin
+          # Version tag
+          echo "$(git describe --tags --always --dirty)" > dist/VERSION.txt
+          cat dist/VERSION.txt
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-ble
+          path: dist/
+          retention-days: 90
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/funkbridge-ble.bin
+            dist/bootloader.bin
+            dist/partition-table.bin
+            dist/VERSION.txt
