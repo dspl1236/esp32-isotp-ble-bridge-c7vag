@@ -290,3 +290,76 @@ PCB change is minimal — three new components, two new signal routes.
 *Status: planning — no implementation started.*
 *Target: ESP32 A0 + L9637D daughter board, or revised PCB.*
 *Repo: dspl1236/esp32-isotp-ble-bridge-c7vag*
+
+---
+
+## L9637D Dual-Line Support (K + L)
+
+The L9637D supports **both K-line and L-line simultaneously** — this is the
+same combination used by the classic VAG KKL (K+L Line) USB diagnostic cables.
+
+### What L-line is
+
+L-line is OBD-II pin 15. On older VAG vehicles it serves two purposes:
+
+1. **Wake-up line** — some ECUs need L-line pulled low briefly during the
+   5-baud init sequence to wake from sleep before K-line communication starts
+2. **Addressed init** — certain older ECUs use L-line to select which ECU
+   responds when multiple ECUs share the K-line bus
+
+On vehicles from approximately 1996–2003, both lines are needed for reliable
+communication. Later CAN-based vehicles (including your C7) don't use L-line.
+
+### L9637D dual-line wiring
+
+```
+OBD pin 7  (K-line) ──── L9637 KBUS  pin 2
+OBD pin 15 (L-line) ──── L9637 LBUS  pin 6   ← second line
+OBD pin 16 (12V)    ──── L9637 VCC   pin 8  (via 100Ω)
+GND                 ──── L9637 GND   pin 5
+ESP32 UART2 TX      ──── L9637 TxD   pin 1  (via level shift)
+ESP32 UART2 RX      ──── L9637 RxD   pin 4  (via volt divider)
+ESP32 GPIO (L-ctrl) ──── L9637 ENL   pin 7  ← L-line enable
+```
+
+The ENL pin (pin 7) controls whether L-line output is active. Drive it with
+a spare ESP32 GPIO. Pull low to enable L-line output, pull high to tristate.
+
+### KKL compatibility
+
+This means a FunkBridge-KWP board with the L9637D wired to both pins 7 and 15
+is electrically equivalent to the classic VAG KKL cable — the same interface
+used by VCDS, VAG-COM, and every old-school VAG diagnostic tool.
+
+The software difference is that FunkBridge bridges the K+L physical layer to
+BLE/WiFi/USB rather than to a PC COM port. From the ECU's perspective it sees
+the same electrical signals.
+
+### Practical implication for older VAG work
+
+With K+L wired:
+- Golf IV, Passat B5, A4 B5/B6, A3 8L — full diagnostic access
+- Older IMMO units (ID3, Megamos etc.) — accessible via 5-baud init + L-line wake
+- ME7.x ECUs (1.8T, 2.7T earlier generations) — KWP2000 via K-line
+- EDC15 / EDC16 diesel ECUs — KWP2000 via K-line
+
+All of these become accessible through the same FunkBridge hardware that
+handles CAN/ISO-TP on the C7 — just a different firmware mode and the
+L9637D wired to both OBD pins.
+
+### Updated GPIO assignments
+
+```
+Function           GPIO    Notes
+──────────────────────────────────────────────────────
+CAN TX             GPIO 5  Existing (TWAI)
+CAN RX             GPIO 4  Existing (TWAI)
+K-line TX          GPIO 17 UART2 TxD → L9637 pin 1
+K-line RX          GPIO 16 UART2 RxD ← L9637 pin 4
+L-line enable      GPIO 33 → L9637 pin 7 (ENL)
+CAN Silent         GPIO 21 Existing
+LED                GPIO 2  Existing
+```
+
+The L-line enable GPIO lets the firmware control whether L-line is active
+during init sequences without a separate transistor circuit.
