@@ -63,10 +63,10 @@ jobs:
       - name: Install minify-html
         run: pip install minify-html requests
 
-      - name: Fetch VAG-CP PWA for SPIFFS
+      - name: Fetch FunkFlash PWA for SPIFFS
         run: |
           mkdir -p web
-          curl -sL https://dspl1236.github.io/VAG-CP-Docs/ -o /tmp/pwa.html
+          curl -sL https://dspl1236.github.io/FunkFlash-ESP/ -o /tmp/pwa.html
           python3 -c "
           import minify_html, pathlib
           src = pathlib.Path('/tmp/pwa.html').read_text()
