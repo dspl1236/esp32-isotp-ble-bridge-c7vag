@@ -1,23 +1,13 @@
-menu "Example Configuration"
+menu "FunkBridge Configuration"
 
-    config EXAMPLE_TX_GPIO_NUM
-        int "TX GPIO number"
-        default 2 if IDF_TARGET_ESP32C3
-        default 20 if IDF_TARGET_ESP32S2
-        default 21 if IDF_TARGET_ESP32
-        default 4 if IDF_TARGET_ESP32S3
+    config FUNKBRIDGE_WIFI_DEFAULT_MODE
+        int "WiFi default mode (0=BLE, 1=AP, 2=Station)"
+        default 0
+        range 0 2
         help
-            This option selects the GPIO pin used for the TX signal. Connect the
-            TX signal to your transceiver.
-
-    config EXAMPLE_RX_GPIO_NUM
-        int "RX GPIO number"
-        default 3 if IDF_TARGET_ESP32C3
-        default 21 if IDF_TARGET_ESP32S2
-        default 22 if IDF_TARGET_ESP32
-        default 5 if IDF_TARGET_ESP32S3
-        help
-            This option selects the GPIO pin used for the RX signal. Connect the
-            RX signal to your transceiver.
+            Default transport mode on boot.
+            0 = BLE (Bluetooth Low Energy)
+            1 = WiFi AP (creates FunkBridge network)
+            2 = WiFi Station (joins existing network)
 
 endmenu
