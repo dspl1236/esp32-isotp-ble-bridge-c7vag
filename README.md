@@ -109,7 +109,8 @@ Upgrade path: ESP32-S3 (drop-in, more RAM, BLE 5.0, native USB)
 
 - **[FunkFlash-ESP](https://github.com/dspl1236/FunkFlash-ESP)** — Cross-platform flasher for this firmware
 - **[simos-suite](https://github.com/dspl1236/simos-suite)** — Desktop ECU diagnostic tool
-- **[VAG-CP-Docs](https://github.com/dspl1236/VAG-CP-Docs)** — Component Protection research + PWA diagnostic tool
+- **[VAG-CP-Docs](https://github.com/dspl1236/VAG-CP-Docs)** — Component Protection research documentation
+- **[FunkBridge PWA](https://dspl1236.github.io/FunkFlash-ESP/)** — Browser-based IKA key reader and diagnostic tool
 - **[Switchleg1/esp32-isotp-ble-bridge](https://github.com/Switchleg1/esp32-isotp-ble-bridge)** — Upstream
 
 ---
