@@ -1,9 +1,13 @@
 name: Build Firmware
 
 on:
-  # Firmware build requires Switchleg1 base source + our additions.
-  # Currently triggered manually only — enable push trigger once
-  # full source compilation is verified locally.
+  push:
+    branches: [main]
+    paths:
+      - 'main/**'
+      - 'CMakeLists.txt'
+      - 'partitions.csv'
+      - 'sdkconfig.defaults'
   workflow_dispatch:
   release:
     types: [created]
