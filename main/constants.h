@@ -61,7 +61,8 @@ typedef int16_t							bool16;
 #define WDT_TIMEOUT_S					5
 #define US_TO_S							1000000
 
-//#define PASSWORD_CHECK 
+//#define PASSWORD_CHECK        // FunkBridge: password auth disabled — we own both ends
+#define FUNKBRIDGE_VERSION				"1.0.0"
 #define MAX_PASSWORD_LENGTH				64
 #define PASSWORD_KEY					"Password"
 #define PASSWORD_DEFAULT			   	"BLE2"
