@@ -16,7 +16,7 @@
 #define BLE_PARTIAL_ID					0xF2
 
 #define MAX_GAP_LENGTH					14
-#define DEFAULT_GAP_NAME          		"BLE_TO_ISOTP20"
+#define DEFAULT_GAP_NAME          		"FunkBridge"
 
 //BLE command flags
 #define BLE_COMMAND_FLAG_PER_ENABLE		1
