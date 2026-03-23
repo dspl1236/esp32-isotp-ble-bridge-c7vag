@@ -12,12 +12,23 @@ typedef int16_t							bool16;
 #define tMUTEX(x)						xSemaphoreTake(x, portMAX_DELAY)
 #define rMUTEX(x)						xSemaphoreGive(x)
 
+// ── Hardware: AITRIP ESP32-DevKitC-32 (ESP-WROOM-32, CH340C, 30-pin) ────────
+// GPIO5  = TWAI TX  (strapping pin — TJA1051T RXD idles HIGH/recessive = safe)
+// GPIO4  = TWAI RX
+// GPIO34 = MCP2515 INT (input-only, NO internal pull-up — add 10kΩ to 3.3V!)
+// GPIO21 = TJA1051T STB (SILENT pin, pulled LOW = active mode)
+// GPIO2  = LED (must be LOW at boot — existing Switchleg design)
+// GPIO6–11 = Flash memory — never use these
+// ─────────────────────────────────────────────────────────────────────────────
+
 // MCP2515 Convenience CAN (100kbps, OBD pins 3/11)
 #define MCP2515_SCK_PIN      18
 #define MCP2515_MOSI_PIN     23
 #define MCP2515_MISO_PIN     19
 #define MCP2515_CS_PIN       17
-#define MCP2515_INT_PIN      34
+#define MCP2515_INT_PIN      34  // INPUT-ONLY GPIO — no internal pull-up!
+                             // HARDWARE REQUIRED: 10kΩ resistor from GPIO34 to 3.3V
+                             // MCP2515 INT is active-low open-drain — will float without it
 #define MCP2515_CLOCK_HZ     4000000
 #define BLE_COMMAND_FLAG_CONV_CAN  0x10
 
