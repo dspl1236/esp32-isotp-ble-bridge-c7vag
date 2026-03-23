@@ -46,6 +46,7 @@ typedef struct IsoTpLinkContainer {
     uint8_t *payload_buf;
     uint32_t buffer_size;
     uint16_t number;
+    bool16   use_conv_can;
 } IsoTpLinkContainer;
 
 IsoTpLinkContainer isotp_link_containers[NUM_ISOTP_LINK_CONTAINERS];

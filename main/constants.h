@@ -12,6 +12,15 @@ typedef int16_t							bool16;
 #define tMUTEX(x)						xSemaphoreTake(x, portMAX_DELAY)
 #define rMUTEX(x)						xSemaphoreGive(x)
 
+// MCP2515 Convenience CAN (100kbps, OBD pins 3/11)
+#define MCP2515_SCK_PIN      18
+#define MCP2515_MOSI_PIN     23
+#define MCP2515_MISO_PIN     19
+#define MCP2515_CS_PIN       17
+#define MCP2515_INT_PIN      34
+#define MCP2515_CLOCK_HZ     4000000
+#define BLE_COMMAND_FLAG_CONV_CAN  0x10
+
 //Settings
 #define BRG_SETTING_ISOTP_STMIN			1
 #define BRG_SETTING_LED_COLOR			2

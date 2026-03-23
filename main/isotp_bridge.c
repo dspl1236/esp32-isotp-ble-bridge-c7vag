@@ -24,6 +24,7 @@
 #include "connection_handler.h"
 #include "isotp_bridge.h"
 #include "wifi_server.h"
+#include "mcp2515.h"
 
 #define BRIDGE_TAG 					"Bridge"
 
@@ -51,8 +52,9 @@ int isotp_user_send_can(const uint32_t arbitration_id, const uint8_t* data, cons
 {
     twai_message_t frame = {.identifier = arbitration_id, .data_length_code = size};
     memcpy(frame.data, data, sizeof(frame.data));
-	twai_send(&frame);
-
+    bool16 _conv=false;
+    for(uint16_t _i=0;_i<NUM_ISOTP_LINK_CONTAINERS;_i++){IsoTpLinkContainer*_c=&isotp_link_containers[_i];if(_c->link.send_arbitration_id==arbitration_id&&_c->use_conv_can){_conv=true;break;}}
+    if(_conv)mcp2515_send(&frame);else twai_send(&frame);
     return ISOTP_RET_OK;                           
 }
 
@@ -224,6 +226,7 @@ static void isotp_send_queue_task(void *arg)
 								msg.rxID == isotp_link_container->link.send_arbitration_id) {
 								ESP_LOGD(BRIDGE_TAG, "container match [%d]", i);
 								isotp_link_container_id = i;
+								isotp_link_container->use_conv_can = (msg.flags != 0);
 								isotp_send(&isotp_link_container->link, msg.buffer, msg.msg_length);
 								xSemaphoreGive(isotp_link_container->wait_for_isotp_data_sem);
 								found_container = true;
@@ -606,6 +609,7 @@ bool16 parse_packet(ble_header_t* header, uint8_t* data)
 					msg.msg_length = header->cmdSize;
 					msg.rxID = header->txID;
 					msg.txID = header->rxID;
+					msg.flags = (header->cmdFlags & BLE_COMMAND_FLAG_CONV_CAN) ? 1 : 0;
 					msg.buffer = malloc(header->cmdSize);
 					if (msg.buffer) {
 						memcpy(msg.buffer, data, header->cmdSize);
@@ -835,4 +839,9 @@ int32_t	bridge_send_isotp(send_message_t *msg)
 uint16_t bridge_send_available()
 {
 	return uxQueueSpacesAvailable(isotp_send_message_queue);
+}
+
+void mcp2515_deliver_frame(twai_message_t *msg){
+	if(raw_sniff_enabled){uint8_t r[11];r[0]=(msg->identifier>>8)&0xFF;r[1]=msg->identifier&0xFF;r[2]=msg->data_length_code;memcpy(&r[3],msg->data,msg->data_length_code);send_packet(BLE_RAW_SNIFF_ID,BLE_RAW_SNIFF_ID,0,r,3+msg->data_length_code);}
+	for(uint16_t i=0;i<NUM_ISOTP_LINK_CONTAINERS;i++){IsoTpLinkContainer*c=&isotp_link_containers[i];if(msg->identifier==c->link.receive_arbitration_id){tMUTEX(c->data_mutex);isotp_on_can_message(&c->link,msg->data,msg->data_length_code);rMUTEX(c->data_mutex);xSemaphoreGive(c->wait_for_isotp_data_sem);break;}}
 }

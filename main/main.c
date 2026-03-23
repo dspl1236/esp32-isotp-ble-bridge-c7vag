@@ -24,6 +24,7 @@
 #include "connection_handler.h"
 #include "isotp_bridge.h"
 #include "wifi_server.h"
+#include "mcp2515.h"
 
 #define MAIN_TAG    "Main"
 
@@ -47,6 +48,7 @@ void app_main(void)
     led_init();
     uart_init();
     twai_init();
+    mcp2515_init();
     isotp_init();
     persist_init();
 
@@ -79,6 +81,7 @@ void app_main(void)
 
         /* Start CAN/ISO-TP tasks — common to both transports */
         twai_start_task();
+        mcp2515_start_task();
         isotp_start_task();
         persist_start_task();
         uart_start_task();
@@ -104,6 +107,7 @@ void app_main(void)
         uart_stop_task();
         persist_stop_task();
         isotp_stop_task();
+        mcp2515_stop_task();
         twai_stop_task();
 
         esp_sleep_enable_timer_wakeup(SLEEP_TIME * US_TO_S);
@@ -120,6 +124,7 @@ void app_main(void)
 
     persist_deinit();
     isotp_deinit();
+    mcp2515_deinit();
     twai_deinit();
     uart_deinit();
     led_deinit();
