@@ -94,14 +94,20 @@ builds automatically on every push and attaches `.bin` files to releases.
 
 ## Hardware
 
-Designed for the **ESP32 A0 OBD-II bridge** (Switchleg1 hardware):
-- ESP32 dual-core 240MHz, 520KB RAM, 4MB flash
-- TWAI (CAN) controller: TX=GPIO5, RX=GPIO4
-- WS2812 LED: GPIO2
-- Silent mode: GPIO21
-- USB-UART: CP210x (VID `0x10C4`, PID `0xEA60`)
+**[→ Full wiring guide: docs/HARDWARE.md](docs/HARDWARE.md)**
 
-Upgrade path: ESP32-S3 (drop-in, more RAM, BLE 5.0, native USB)
+Designed for **AITRIP ESP32-WROOM-32 + MCP2515 TJA1050 CAN module**:
+
+| Channel | Interface | Speed | OBD-II pins |
+|---------|-----------|-------|-------------|
+| Drive Train CAN (J533) | TWAI + TJA1051T transceiver | 500 kbps | 6 / 14 |
+| Convenience CAN (J255) | MCP2515 over SPI (TJA1050 on module) | 100 kbps | 3 / 11 |
+
+**Required parts not in the Amazon kit:**
+- TJA1051T or SN65HVD230 CAN transceiver (for TWAI channel)
+- 10kΩ resistor from 3.3V to GPIO34 (MCP2515 INT pull-up — mandatory)
+
+See [docs/HARDWARE.md](docs/HARDWARE.md) for complete pin assignments, assembly checklist, and first-connection test procedure.
 
 ---
 
