@@ -314,8 +314,11 @@ static void send_buffered_message(void)
     uint32_t recv_len = 0;
 
     while(temp_spp_recv_data_node_p1 != NULL){
-        if(recv_len > sizeof(buf)) {
-            continue;
+        /* Bounds check BEFORE memcpy to prevent buffer overflow */
+        if(recv_len + temp_spp_recv_data_node_p1->len > sizeof(buf)) {
+            ESP_LOGW("ble_srv", "BLE recv buffer overflow prevented: %lu + %d > %u",
+                     (unsigned long)recv_len, temp_spp_recv_data_node_p1->len, (unsigned)sizeof(buf));
+            break;
         }
         memcpy(buf + recv_len, (char *)(temp_spp_recv_data_node_p1->node_buff), temp_spp_recv_data_node_p1->len);
         recv_len += temp_spp_recv_data_node_p1->len;

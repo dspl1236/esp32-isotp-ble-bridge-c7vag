@@ -54,7 +54,7 @@ static const char *TAG = "wifi_srv";
 
 /* ── Configuration ────────────────────────────────────────────────────────── */
 #define WIFI_AP_SSID            "FunkBridge"
-#define WIFI_AP_PASS            ""              /* open network */
+#define WIFI_AP_PASS            "FunkBridge1"   /* WPA2 — change via /api/wifi */
 #define WIFI_AP_IP              "192.168.4.1"
 #define WIFI_AP_CHANNEL         6
 #define WIFI_AP_MAX_CONN        4
@@ -138,6 +138,13 @@ void wifi_server_set_rx_callback(wifi_frame_cb_t cb) {
 /* ── WebSocket handler ────────────────────────────────────────────────────── */
 static esp_err_t ws_handler(httpd_req_t *req) {
     if (req->method == HTTP_GET) {
+        /* WebSocket upgrade — only allow one concurrent client */
+        if (s_ws_fd >= 0) {
+            ESP_LOGW(TAG, "WebSocket: rejecting second client (fd=%d already connected)",
+                     s_ws_fd);
+            httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Only one WS client allowed");
+            return ESP_FAIL;
+        }
         ESP_LOGI(TAG, "WebSocket handshake from fd=%d", httpd_req_to_sockfd(req));
         s_ws_fd = httpd_req_to_sockfd(req);
         return ESP_OK;
@@ -369,7 +376,7 @@ static void start_ap_mode(void) {
             .channel         = WIFI_AP_CHANNEL,
             .password        = WIFI_AP_PASS,
             .max_connection  = WIFI_AP_MAX_CONN,
-            .authmode        = WIFI_AUTH_OPEN,
+            .authmode        = WIFI_AUTH_WPA2_PSK,
         },
     };
     esp_wifi_set_mode(WIFI_MODE_AP);
