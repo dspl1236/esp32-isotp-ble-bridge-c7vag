@@ -32,7 +32,8 @@ Commands from simos-suite with flag `0x10` set route to the MCP2515 channel.
 | WWZMDiB MCP2515 + TJA1050 CAN module | 8 MHz crystal, built-in 120Ω termination jumper |
 | **SN65HVD230 breakout** (purple PCB) | TWAI channel transceiver — **confirmed working** |
 | 10kΩ resistor (0805 or through-hole) | GPIO34 pull-up — **required, do not skip** |
-| OBD-II breakout / pigtail | Or tap directly at J533 connector under dash |
+| **EBOOT MP1584EN** buck converter (6-pack) | OBD +12V → 5V regulated — **set to 5V before connecting** |
+| OBD-II pigtail or male connector | iKKEGOL J1962 pigtail or OLLGEN male connector |
 
 ---
 
@@ -78,7 +79,7 @@ ESP32 GPIO23 ──→  MCP2515 module MOSI (SI)
 ESP32 GPIO19 ←──  MCP2515 module MISO (SO)
 ESP32 GPIO17 ──→  MCP2515 module CS
 ESP32 GPIO34 ←──  MCP2515 module INT    ← see pull-up note below!
-3.3V         ──→  MCP2515 module VCC
+5V           ──→  MCP2515 module VCC   ← 5V from MP1584EN, NOT 3.3V (TJA1050 is 5V-only)
 GND          ──→  MCP2515 module GND
 MCP2515 module CANH ──→  OBD-II pin 3
 MCP2515 module CANL ──→  OBD-II pin 11
@@ -156,6 +157,45 @@ OBD-II pin  Signal              ECU / Module
 
 ---
 
+## Power — MP1584EN Buck Converter (OBD +12V → 5V)
+
+The car's OBD-II port supplies **12–14.4V** on pin 16. The ESP32 and MCP2515 module
+need regulated 5V. The **EBOOT MP1584EN** mini buck converter handles this.
+
+```
+OBD-II pin 16 (+12V) ──→  MP1584EN  IN+
+OBD-II pin 4 or 5 (GND) ──→  MP1584EN  IN−
+MP1584EN  OUT+ ──→  ESP32 VIN   (5V)
+MP1584EN  OUT+ ──→  MCP2515 module VCC   (5V)
+MP1584EN  OUT− ──→  common GND
+```
+
+The ESP32's onboard 3.3V LDO converts 5V → 3.3V for itself and the SN65HVD230.
+
+### ⚠️ Set output voltage BEFORE connecting anything
+
+The MP1584EN ships with an unknown output voltage. **Do not connect it to the ESP32
+until you have verified 5V output.**
+
+1. Power the MP1584EN from any 7–24V source (a USB charger won't work — needs >5V in)
+2. Probe OUT+ and OUT− with a multimeter
+3. Turn the small brass trim pot until the output reads **5.0V**
+4. Then wire to ESP32 VIN and MCP2515 VCC
+
+### Voltage rails summary
+
+| Rail | Source | Powers |
+|------|--------|--------|
+| 12–14V | OBD pin 16 | MP1584EN input |
+| **5V** | MP1584EN OUT+ | ESP32 VIN, MCP2515 module VCC |
+| **3.3V** | ESP32 onboard LDO | SN65HVD230 VCC, logic signals |
+| GND | OBD pins 4+5 | Common ground for everything |
+
+> The SN65HVD230 is 3.3V — power it from ESP32 3.3V pin, **not** the 5V rail.
+> The MCP2515 module is 5V — power it from MP1584EN OUT+, **not** 3.3V.
+
+---
+
 ## Assembly checklist
 
 - [ ] 10kΩ resistor wired from 3.3V to GPIO34 (MCP2515 INT pull-up)
@@ -165,8 +205,13 @@ OBD-II pin  Signal              ECU / Module
 - [ ] MCP2515: CANH→OBD pin 3, CANL→OBD pin 11
 - [ ] MCP2515: 120Ω termination jumper removed
 - [ ] Nothing connected to GPIO12 on the breadboard
-- [ ] OBD-II pin 16 → ESP32 VIN (or USB power from laptop)
-- [ ] OBD-II pins 4+5 → ESP32 GND
+- [ ] MP1584EN output trimmed to **5.0V** (verify with multimeter before connecting)
+- [ ] OBD-II pin 16 → MP1584EN IN+
+- [ ] OBD-II pin 4 or 5 → MP1584EN IN− (GND)
+- [ ] MP1584EN OUT+ → ESP32 VIN
+- [ ] MP1584EN OUT+ → MCP2515 module VCC
+- [ ] MP1584EN OUT− → common GND
+- [ ] SN65HVD230 VCC → ESP32 3.3V pin (not 5V)
 
 ---
 
@@ -203,4 +248,4 @@ After flashing the ESP32 advertises as `BLE_TO_ISOTP20` and is ready for simos-s
 **MCP2515 fails to init?**
 - Verify 10kΩ pull-up on GPIO34
 - Check MOSI/MISO not swapped (most common mistake)
-- Verify MCP2515 VCC is on 3.3V rail
+- Verify MCP2515 VCC is on **5V rail** (from MP1584EN OUT+), not 3.3V — TJA1050 is 5V-only
