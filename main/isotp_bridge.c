@@ -51,7 +51,9 @@ void	isotp_set_run_tasks(bool16 allow);
 int isotp_user_send_can(const uint32_t arbitration_id, const uint8_t* data, const uint16_t size)
 {
     twai_message_t frame = {.identifier = arbitration_id, .data_length_code = size};
-    memcpy(frame.data, data, sizeof(frame.data));
+    uint16_t copy_len = (size <= sizeof(frame.data)) ? size : sizeof(frame.data);
+    memset(frame.data, 0xAA, sizeof(frame.data));  /* ISO-TP padding */
+    memcpy(frame.data, data, copy_len);
     bool16 _conv=false;
     for(uint16_t _i=0;_i<NUM_ISOTP_LINK_CONTAINERS;_i++){IsoTpLinkContainer*_c=&isotp_link_containers[_i];if(_c->link.send_arbitration_id==arbitration_id&&_c->use_conv_can){_conv=true;break;}}
     if(_conv)mcp2515_send(&frame);else twai_send(&frame);
@@ -629,7 +631,7 @@ bool16 parse_packet(ble_header_t* header, uint8_t* data)
 		}
 	} else {
 		//password has not be accepted yet, check for password
-		if(header->cmdFlags & BRG_SETTING_PASSWORD & BLE_COMMAND_FLAG_SETTINGS & BLE_COMMAND_FLAG_SETTINGS_GET) {
+		if((header->cmdFlags & BLE_COMMAND_FLAG_SETTINGS) && (header->cmdFlags & BLE_COMMAND_FLAG_SETTINGS_GET) == 0) {
 			//check size
 			if(header->cmdSize <= MAX_PASSWORD_LENGTH)
 			{
@@ -842,6 +844,24 @@ uint16_t bridge_send_available()
 }
 
 void mcp2515_deliver_frame(twai_message_t *msg){
-	if(raw_sniff_enabled){uint8_t r[11];r[0]=(msg->identifier>>8)&0xFF;r[1]=msg->identifier&0xFF;r[2]=msg->data_length_code;memcpy(&r[3],msg->data,msg->data_length_code);send_packet(BLE_RAW_SNIFF_ID,BLE_RAW_SNIFF_ID,0,r,3+msg->data_length_code);}
-	for(uint16_t i=0;i<NUM_ISOTP_LINK_CONTAINERS;i++){IsoTpLinkContainer*c=&isotp_link_containers[i];if(msg->identifier==c->link.receive_arbitration_id){tMUTEX(c->data_mutex);isotp_on_can_message(&c->link,msg->data,msg->data_length_code);rMUTEX(c->data_mutex);xSemaphoreGive(c->wait_for_isotp_data_sem);break;}}
+	uint8_t dlc = msg->data_length_code;
+	if (dlc > 8) dlc = 8;  /* clamp to CAN 2.0 max */
+	if(raw_sniff_enabled){
+		uint8_t r[11];
+		r[0]=(msg->identifier>>8)&0xFF;
+		r[1]=msg->identifier&0xFF;
+		r[2]=dlc;
+		memcpy(&r[3], msg->data, dlc);
+		send_packet(BLE_RAW_SNIFF_ID, BLE_RAW_SNIFF_ID, 0, r, 3+dlc);
+	}
+	for(uint16_t i=0; i<NUM_ISOTP_LINK_CONTAINERS; i++){
+		IsoTpLinkContainer *c = &isotp_link_containers[i];
+		if(msg->identifier == c->link.receive_arbitration_id){
+			tMUTEX(c->data_mutex);
+			isotp_on_can_message(&c->link, msg->data, dlc);
+			rMUTEX(c->data_mutex);
+			xSemaphoreGive(c->wait_for_isotp_data_sem);
+			break;
+		}
+	}
 }

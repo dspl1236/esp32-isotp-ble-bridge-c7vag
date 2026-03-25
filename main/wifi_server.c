@@ -169,7 +169,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
 static void ws_send_task(void *arg) {
     while (s_running) {
         size_t item_size = 0;
-        void  *item = xRingbufferReceiveFromISR(s_tx_ringbuf, &item_size);
+        void  *item = xRingbufferReceive(s_tx_ringbuf, &item_size, pdMS_TO_TICKS(50));
         if (item) {
             if (s_ws_fd >= 0 && s_server) {
                 httpd_ws_frame_t pkt = {
@@ -180,8 +180,6 @@ static void ws_send_task(void *arg) {
                 httpd_ws_send_frame_async(s_server, s_ws_fd, &pkt);
             }
             vRingbufferReturnItem(s_tx_ringbuf, item);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(5));
         }
     }
     vTaskDelete(NULL);
@@ -322,8 +320,13 @@ static void dns_captive_task(void *arg) {
         resp[2] = 0x81; resp[3] = 0x80;   /* QR=1 AA=0 */
         resp[6] = 0x00; resp[7] = 0x01;   /* 1 answer */
         int qend = 12;
-        while (qend < n && buf[qend]) qend += buf[qend] + 1;
+        while (qend < n && buf[qend]) {
+            int label_len = buf[qend];
+            if (qend + 1 + label_len > n) break;  /* malformed label */
+            qend += label_len + 1;
+        }
         qend += 5; /* null + qtype + qclass */
+        if (qend > n) continue;  /* malformed query — skip */
         int rlen = qend;
         resp[rlen++] = 0xC0; resp[rlen++] = 0x0C; /* name ptr */
         resp[rlen++] = 0x00; resp[rlen++] = 0x01; /* A */
