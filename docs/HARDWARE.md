@@ -2,9 +2,13 @@
 
 Specific wiring guide for building the **C7 VAG dual-CAN BLE bridge** using:
 - **AITRIP ESP32-WROOM-32** (CP2102, 30-pin DevKit)
-- **MCP2515 + TJA1050 CAN module** (8 MHz crystal, 2× 120Ω termination jumpers)
-- **TJA1051T or SN65HVD230** CAN transceiver (for TWAI channel — see below)
-- **10kΩ resistor** (pull-up for MCP2515 INT line)
+- **MCP2515 + TJA1050 CAN module** (8 MHz crystal, 120Ω termination jumper)
+- **SN65HVD230 breakout module** (purple PCB, CTX/CRX/S/CANH/CANL labels) — confirmed working
+- **10kΩ resistor** (pull-up for MCP2515 INT line — mandatory)
+
+> **Transceiver note:** The purple SN65HVD230 breakout module (pin labels: VCC GND CTX CRX CANH CANL S NC)
+> is the confirmed part for TWAI/Drive Train CAN. The TJA1051T is an equivalent substitute if you have one.
+> Pin names differ between parts — see the wiring tables below for each.
 
 ---
 
@@ -12,7 +16,7 @@ Specific wiring guide for building the **C7 VAG dual-CAN BLE bridge** using:
 
 | Channel | Bus | Speed | OBD-II Pins | Interface |
 |---------|-----|-------|-------------|-----------|
-| Drive Train CAN | J533 gateway | 500 kbps | 6 (+), 14 (−) | ESP32 TWAI (built-in) + external TJA1051T |
+| Drive Train CAN | J533 gateway | 500 kbps | 6 (+), 14 (−) | ESP32 TWAI (built-in) + SN65HVD230 |
 | Convenience CAN | J255 HVAC | 100 kbps | 3 (+), 11 (−) | MCP2515 over SPI (TJA1050 built into module) |
 
 Both channels run as independent FreeRTOS tasks and share the same BLE/WiFi transport.
@@ -22,36 +26,49 @@ Commands from simos-suite with flag `0x10` set route to the MCP2515 channel.
 
 ## Parts list
 
-| Part | Source | Notes |
-|------|--------|-------|
-| AITRIP 3PCS ESP32-WROOM-32 (CP2102, 30-pin) | Amazon | VID `0x10C4` PID `0xEA60` |
-| WWZMDiB MCP2515 + TJA1050 CAN module | Amazon | 8 MHz crystal, has built-in 120Ω termination jumper |
-| **TJA1051T** (SOIC-8) or **SN65HVD230** (SOIC-8) | DigiKey / Mouser / eBay | For TWAI channel — **required**, not optional |
-| 10kΩ resistor (0805 or through-hole) | Any | GPIO34 pull-up — **required** |
-| OBD-II breakout / pigtail | eBay | Or tap directly at J533 connector under dash |
-
-> **Why you need the TJA1051T:** The ESP32's TWAI controller outputs bare 3.3V CMOS logic.
-> A CAN transceiver converts that to the differential CAN-H/CAN-L bus signalling the car expects.
-> The MCP2515 module already has a TJA1050 for its own channel — the TWAI channel needs its own.
+| Part | Notes |
+|------|-------|
+| AITRIP 3PCS ESP32-WROOM-32 (CP2102, 30-pin) | VID `0x10C4` PID `0xEA60` |
+| WWZMDiB MCP2515 + TJA1050 CAN module | 8 MHz crystal, built-in 120Ω termination jumper |
+| **SN65HVD230 breakout** (purple PCB) | TWAI channel transceiver — **confirmed working** |
+| 10kΩ resistor (0805 or through-hole) | GPIO34 pull-up — **required, do not skip** |
+| OBD-II breakout / pigtail | Or tap directly at J533 connector under dash |
 
 ---
 
 ## Pin assignments
 
-### TWAI — Drive Train CAN (J533, 500 kbps)
+### TWAI — Drive Train CAN (J533, 500 kbps) using SN65HVD230
+
+```
+ESP32 GPIO5  ──→  SN65HVD230 CTX   ← TWAI transmit output
+ESP32 GPIO4  ←──  SN65HVD230 CRX   ← TWAI receive input
+GND          ──→  SN65HVD230 S     ← tie LOW = high-speed mode (500 kbps)
+3.3V         ──→  SN65HVD230 VCC
+GND          ──→  SN65HVD230 GND
+             ──   SN65HVD230 NC    ← leave unconnected
+SN65HVD230 CANH ──→  OBD-II pin 6
+SN65HVD230 CANL ──→  OBD-II pin 14
+```
+
+> **S pin:** Tie directly to GND on the breadboard for normal high-speed operation.
+> GPIO21 is not needed for the SN65HVD230 — the firmware pulls GPIO21 LOW anyway
+> which is harmless, but wiring S to GND directly is simpler and more reliable.
+
+> **GPIO5 strapping pin:** Safe to use — SN65HVD230 CRX idles HIGH (recessive bus)
+> so the ESP32 boot state is not affected.
+
+### TWAI — Drive Train CAN using TJA1051T (alternate part)
 
 ```
 ESP32 GPIO5  ──→  TJA1051T TXD  (pin 1)
 ESP32 GPIO4  ←──  TJA1051T RXD  (pin 4)
-ESP32 GPIO21 ──→  TJA1051T STB  (pin 8)   ← pulled LOW by firmware = active mode
+ESP32 GPIO21 ──→  TJA1051T STB  (pin 8)   ← firmware pulls LOW = active mode
 3.3V         ──→  TJA1051T VCC  (pin 3)
 GND          ──→  TJA1051T GND  (pin 2)
 TJA1051T CANH (pin 7) ──→  OBD-II pin 6
 TJA1051T CANL (pin 6) ──→  OBD-II pin 14
 ```
-
-GPIO5 is a strapping pin. TJA1051T RXD idles HIGH (recessive) so it is safe to use —
-the ESP32 will boot correctly with it connected.
 
 ### MCP2515 — Convenience CAN (J255, 100 kbps)
 
@@ -61,7 +78,7 @@ ESP32 GPIO23 ──→  MCP2515 module MOSI (SI)
 ESP32 GPIO19 ←──  MCP2515 module MISO (SO)
 ESP32 GPIO17 ──→  MCP2515 module CS
 ESP32 GPIO34 ←──  MCP2515 module INT    ← see pull-up note below!
-3.3V         ──→  MCP2515 module VCC    (module is 3.3V-compatible)
+3.3V         ──→  MCP2515 module VCC
 GND          ──→  MCP2515 module GND
 MCP2515 module CANH ──→  OBD-II pin 3
 MCP2515 module CANL ──→  OBD-II pin 11
@@ -69,22 +86,46 @@ MCP2515 module CANL ──→  OBD-II pin 11
 
 ### ⚠️ Critical: GPIO34 pull-up resistor
 
-**GPIO34 has no internal pull-up at the silicon level** — it is an input-only GPIO.
-The MCP2515 INT pin is active-low open-drain. Without a pull-up it floats and fires
-spurious interrupts constantly, making the MCP2515 channel unreliable.
+**GPIO34 is input-only at the silicon level — no internal pull-up exists.**
+Confirmed from the ESP32 pinout: GPIO34 is labeled "Input only / RTC GPIO4 / ADC1_6."
+The MCP2515 INT pin is active-low open-drain. Without a pull-up it floats high/low
+unpredictably and fires spurious interrupts constantly.
 
 ```
 3.3V ──[10kΩ]──┬── ESP32 GPIO34
                └── MCP2515 INT
 ```
 
-Add a 10kΩ resistor between 3.3V and GPIO34 **before powering up**.
+Add the 10kΩ resistor between 3.3V and GPIO34 **before powering up.**
 
 ---
 
-## MCP2515 module notes
+## ESP32 GPIO warnings
 
-The MCP2515 module runs at **100 kbps** configured for an **8 MHz crystal**:
+| GPIO | Issue | Detail |
+|------|-------|--------|
+| GPIO34 | **Input-only, no pull-up** | Use for MCP2515 INT only — requires external 10kΩ to 3.3V |
+| GPIO35 | Input-only, no pull-up | Avoid unless needed |
+| GPIO36/39 | Input-only | ADC use only |
+| **GPIO12** | **Strapping pin** | If HIGH at boot → selects 1.8V flash voltage → ESP32 won't boot. Do not connect anything to GPIO12 on your breadboard. |
+| GPIO5 | Strapping pin | Safe with SN65HVD230/TJA — transceiver CRX/RXD idles HIGH (recessive), boot not affected |
+| GPIO0 | Strapping pin | Hold LOW to enter flash mode. Leave floating or pull HIGH for normal boot. |
+| GPIO2 | Strapping pin (LED) | On-board LED, must be LOW at boot. Already handled by Switchleg firmware. |
+| GPIO6–11 | **Flash memory** | Hard-wired to SPI flash. Never use these. |
+
+---
+
+## Transceiver comparison
+
+| Part | VCC | Mode pin | Pin names | Notes |
+|------|-----|----------|-----------|-------|
+| **SN65HVD230** | 3.3V | RS → GND for high-speed | CTX / CRX / CANH / CANL / S | **Confirmed working. Purple breakout module.** |
+| TJA1051T | 3.3V or 5V | STB → LOW for active | TXD / RXD / CANH / CANL / STB | VAG factory part family, direct substitute |
+| TJA1050 | **5V only** | None | TXD / RXD / CANH / CANL | Already on MCP2515 module. Do not use for TWAI at 3.3V. |
+
+---
+
+## MCP2515 bit timing (100 kbps, 8 MHz crystal)
 
 | Register | Value | Meaning |
 |----------|-------|---------|
@@ -92,35 +133,18 @@ The MCP2515 module runs at **100 kbps** configured for an **8 MHz crystal**:
 | CNF2 | `0x92` | PRSEG=2, PHSEG1=3, SAM=1 |
 | CNF3 | `0x02` | PHSEG2=3 |
 
-Total NTQ = 1+3+4+3 = 11 → 1 / (11 × 1 µs) ≈ **100 kbps** ✓
+Total NTQ = 11 → 1 / (11 × 1 µs) = **100 kbps** ✓
 
-**Termination:** The MCP2515 module has a 120Ω resistor with a solder-jumper.
-The C7 Convenience CAN bus (J255) already has termination in the vehicle harness.
-**Remove the 120Ω jumper on the module** unless you are testing on a bench without
-a car connected.
+**Termination:** Remove the 120Ω solder-jumper on the MCP2515 module for in-car use.
+The C7 CAN buses have 120Ω termination built into the vehicle harness already.
 
 ---
 
-## TJA1051T vs TJA1050 vs SN65HVD230
-
-| Part | VCC | Standby pin | Notes |
-|------|-----|-------------|-------|
-| TJA1051T | 3.3V or 5V | STB (active-low) | Preferred — VAG factory part family, 3.3V native |
-| TJA1050 | 5V only | None | Already on MCP2515 module. Don't use for TWAI if running 3.3V |
-| SN65HVD230 | 3.3V | RS (pull LOW for normal mode) | Good substitute for TJA1051T |
-
-If using SN65HVD230: connect RS pin to GND (not GPIO21). Change `SILENT_GPIO_NUM`
-in `constants.h` or tie GPIO21 to GND as well — the firmware pulls it LOW on init
-which is correct for both parts.
-
----
-
-## OBD-II connector pinout reference (C7 A6/A7)
+## OBD-II connector pinout (C7 A6/A7)
 
 ```
 OBD-II pin  Signal              ECU / Module
 ──────────  ──────────────────  ─────────────────────────────
-2           K-Line              Legacy KWP2000 (not used here)
 3           Convenience CAN H   J255, J285, J234, J794 (100 kbps)
 4           Chassis GND
 5           Signal GND
@@ -130,26 +154,26 @@ OBD-II pin  Signal              ECU / Module
 16          Battery +12V
 ```
 
-Both CAN buses use **120Ω termination** at each end of the bus in the vehicle.
-Do not add extra termination when connecting in-circuit to a running car.
-
 ---
 
 ## Assembly checklist
 
-- [ ] 10kΩ resistor soldered/wired from 3.3V to GPIO34
-- [ ] TJA1051T wired: GPIO5→TXD, GPIO4→RXD, GPIO21→STB, 3.3V/GND, CANH/CANL to OBD pins 6/14
-- [ ] MCP2515 module SPI wired: GPIO18/23/19/17/34 to SCK/MOSI/MISO/CS/INT
-- [ ] MCP2515 module CANH/CANL to OBD pins 3/11
-- [ ] MCP2515 120Ω termination jumper removed (in-car use)
-- [ ] OBD-II pin 16 → ESP32 VIN (or use USB power from laptop)
+- [ ] 10kΩ resistor wired from 3.3V to GPIO34 (MCP2515 INT pull-up)
+- [ ] SN65HVD230: CTX→GPIO5, CRX→GPIO4, S→GND, VCC→3.3V, GND→GND
+- [ ] SN65HVD230: CANH→OBD pin 6, CANL→OBD pin 14
+- [ ] MCP2515: SCK→GPIO18, MOSI→GPIO23, MISO→GPIO19, CS→GPIO17, INT→GPIO34
+- [ ] MCP2515: CANH→OBD pin 3, CANL→OBD pin 11
+- [ ] MCP2515: 120Ω termination jumper removed
+- [ ] Nothing connected to GPIO12 on the breadboard
+- [ ] OBD-II pin 16 → ESP32 VIN (or USB power from laptop)
 - [ ] OBD-II pins 4+5 → ESP32 GND
 
 ---
 
 ## Flashing firmware
 
-Use the prebuilt binary from the GitHub releases — no ESP-IDF required:
+Use [FunkFlash-ESP](https://github.com/dspl1236/FunkFlash-ESP) for one-click flashing (recommended),
+or manually with esptool:
 
 ```
 pip install esptool
@@ -161,26 +185,22 @@ esptool.py --chip esp32 --port COM3 --baud 460800 \
   0x310000 spiffs.bin
 ```
 
-Or use [FunkFlash-ESP](https://github.com/dspl1236/FunkFlash-ESP) for one-click flashing.
-
-After flashing, the ESP32 advertises as `BLE_TO_ISOTP20` and is ready for simos-suite.
+After flashing the ESP32 advertises as `BLE_TO_ISOTP20` and is ready for simos-suite.
 
 ---
 
 ## First connection test
 
-With the bridge powered and BLE connected in simos-suite:
-
 1. **Connect tab** → select `BLE_TO_ISOTP20` → Connect
-2. **ECU Info tab** → Read — should wake J533 and return 18 standard DIDs
-3. Check the simos-suite log for `3E 80` wakeup frame on TX, response on RX
+2. **ECU Info tab** → Read — should return 18 standard DIDs from J533
+3. Check simos-suite log for `3E 80` wakeup frame on TX, response on RX
 
-If the Drive Train CAN channel is silent, check:
-- TJA1051T STB pin is LOW (GPIO21 pulled low by firmware)
-- GPIO5/4 wiring to TXD/RXD not swapped
-- OBD-II pins 6/14 not swapped
+**Drive Train CAN silent?**
+- Check SN65HVD230 S pin is tied to GND
+- Verify GPIO5→CTX and GPIO4→CRX not swapped
+- Verify OBD pins 6/14 not swapped
 
-If the MCP2515 channel fails to init:
-- Check SPI wiring (MOSI/MISO are commonly swapped)
+**MCP2515 fails to init?**
 - Verify 10kΩ pull-up on GPIO34
-- Check MCP2515 VCC is 3.3V (some modules have 5V-only markings but work at 3.3V with the TJA1050 floating — power from 3.3V rail only)
+- Check MOSI/MISO not swapped (most common mistake)
+- Verify MCP2515 VCC is on 3.3V rail
