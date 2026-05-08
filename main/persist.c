@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "ble_server.h"
 #include "constants.h"
 #include "led.h"
@@ -291,7 +292,7 @@ bool16 persist_send(persist_t* pPersist)
 		return false;
 	}
 	else {
-		ESP_LOGD(PERSIST_TAG, "Message sent with size: %04X", msg.msg_length);
+		ESP_LOGD(PERSIST_TAG, "Message sent with size: %04X", (unsigned)msg.msg_length);
 	}
 
 	return true;

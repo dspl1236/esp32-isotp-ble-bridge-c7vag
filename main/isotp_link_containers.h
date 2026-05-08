@@ -1,6 +1,8 @@
 #ifndef __ISOTP_LINK_CONTAINERS_H__
 #define __ISOTP_LINK_CONTAINERS_H__
 
+#include "constants.h"
+
 // ─── Profile selection ───────────────────────────────────────────────────────
 // Compile with -DPROFILE_C7_VAG to target Audi C7 A6/A7/A8 modules.
 // Default (no flag) keeps the original MQB Simos18/DQ250 tuning profile.
