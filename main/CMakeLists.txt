@@ -31,5 +31,3 @@ idf_component_register(
         ${WIFI_REQUIRES}
 )
 
-# ESP-IDF Xtensa: int32_t = long int, not int — suppress format mismatch errors
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error)

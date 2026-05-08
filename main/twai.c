@@ -180,7 +180,7 @@ void twai_receive_task(void *arg)
 		while (twai_allow_run_task())
 		{
 			if (twai_receive(&twai_rx_msg, pdMS_TO_TICKS(TIMEOUT_LONG)) == ESP_OK) {
-				ESP_LOGD(TWAI_TAG, "Received TWAI %08X and length %08X", twai_rx_msg.identifier, twai_rx_msg.data_length_code);
+				ESP_LOGD(TWAI_TAG, "Received TWAI %08X and length %08X", (unsigned)twai_rx_msg.identifier, (unsigned)twai_rx_msg.data_length_code);
 				ch_take_can_timer_sem();
 		
 				// Raw sniff mode: forward ALL frames before any ISO-TP filtering.
