@@ -11,6 +11,7 @@
 #include "esp_task_wdt.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include <inttypes.h>
 #include "soc/dport_reg.h"
 #include "isotp.h"
 #include "ble_server.h"
@@ -223,7 +224,7 @@ static void isotp_send_queue_task(void *arg)
 			send_message_t msg;
 			if (xQueueReceive(isotp_send_message_queue, &msg, pdMS_TO_TICKS(TIMEOUT_LONG)) == pdTRUE) {
 				if (isotp_allow_run_tasks()) {
-					ESP_LOGD(BRIDGE_TAG, "isotp_send_queue_task: sending message with %d size (rx id: %04x / tx id: %04x)", msg.msg_length, msg.rxID, msg.txID);
+					ESP_LOGD(BRIDGE_TAG, "isotp_send_queue_task: sending message with %" PRId32 " size (rx id: %04x / tx id: %04x)", msg.msg_length, msg.rxID, msg.txID);
 					for (uint16_t i = 0; i < NUM_ISOTP_LINK_CONTAINERS; i++) {
 						bool16 found_container = false;
 						IsoTpLinkContainer* isotp_link_container = &isotp_link_containers[i];
@@ -411,7 +412,7 @@ bool16 parse_packet(ble_header_t* header, uint8_t* data)
 						case BRG_SETTING_LED_COLOR:
 							{
 								uint32_t color = led_getcolor();
-								ESP_LOGI(BRIDGE_TAG, "Sending color [%06X]", color);
+								ESP_LOGI(BRIDGE_TAG, "Sending color [%06" PRIX32 "]", color);
 								send_packet(0, 0, BLE_COMMAND_FLAG_SETTINGS | BRG_SETTING_LED_COLOR, &color, sizeof(uint32_t));
 							}
 							break;
@@ -488,7 +489,7 @@ bool16 parse_packet(ble_header_t* header, uint8_t* data)
 						{
 							uint32_t* color = (uint32_t*)data;
 							led_setcolor(*color);
-							ESP_LOGI(BRIDGE_TAG, "Set led color [%08X]", *color);
+							ESP_LOGI(BRIDGE_TAG, "Set led color [%08" PRIX32 "]", *color);
 							return true;
 						}
 						break;
