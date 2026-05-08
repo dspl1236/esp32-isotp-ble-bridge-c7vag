@@ -14,4 +14,6 @@ void		bridge_received_wifi(uint16_t tx_id, uint16_t rx_id,
 int32_t		bridge_send_isotp(send_message_t *msg);
 uint16_t	bridge_send_available();
 
+void send_packet(uint32_t txID, uint32_t rxID, uint8_t flags, const void* src, size_t size);
+
 #endif
