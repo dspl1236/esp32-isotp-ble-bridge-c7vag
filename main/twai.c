@@ -10,9 +10,11 @@
 #include "isotp_link_containers.h"
 #include "driver/twai.h"
 #include "constants.h"
+
+// Forward declaration — defined in isotp_bridge.c
+extern void send_packet(uint32_t txID, uint32_t rxID, uint8_t flags, const void* src, size_t size);
 #include "connection_handler.h"
 #include "twai.h"
-#include "isotp_bridge.h"
 
 #define TWAI_TAG 		"TWAI"
 
