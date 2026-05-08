@@ -23,9 +23,6 @@
 #include "uart.h"
 #include "connection_handler.h"
 #include "isotp_bridge.h"
-#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
-#include "wifi_server.h"
-#endif
 #include "mcp2515.h"
 
 #define MAIN_TAG    "Main"
@@ -66,30 +63,15 @@ void app_main(void)
 #if SLEEP_MODE == 1
     while(1) {
 #endif
-        /* Select transport */
-#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
-        funkbridge_wifi_mode_t wifi_mode = wifi_get_mode();
-        bool use_wifi = (wifi_mode != WIFI_MODE_DISABLED);
-#else
-        bool use_wifi = false;
-#endif
+        /* BLE transport */
+        ble_server_callbacks callbacks = {
+            .data_received             = bridge_received_ble,
+            .notifications_subscribed  = bridge_connect,
+            .notifications_unsubscribed = bridge_disconnect
+        };
+        ble_server_start(callbacks);
 
-        if (use_wifi) {
-#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
-            wifi_server_set_rx_callback(bridge_received_wifi);
-            wifi_server_start();
-#endif
-        } else {
-            /* BLE transport */
-            ble_server_callbacks callbacks = {
-                .data_received             = bridge_received_ble,
-                .notifications_subscribed  = bridge_connect,
-                .notifications_unsubscribed = bridge_disconnect
-            };
-            ble_server_start(callbacks);
-        }
-
-        /* Start CAN/ISO-TP tasks — common to both transports */
+        /* Start CAN/ISO-TP tasks */
         twai_start_task();
         mcp2515_start_task();
         isotp_start_task();
@@ -102,18 +84,12 @@ void app_main(void)
             esp_task_wdt_reset();
 
         /* Stop transport */
-        if (use_wifi) {
-#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
-            wifi_server_stop();
-#endif
-        } else {
-            ble_stop_advertising();
-            while (ble_connected()) {
-                vTaskDelay(pdMS_TO_TICKS(TIMEOUT_NORMAL));
-                esp_task_wdt_reset();
-            }
-            ble_server_stop();
+        ble_stop_advertising();
+        while (ble_connected()) {
+            vTaskDelay(pdMS_TO_TICKS(TIMEOUT_NORMAL));
+            esp_task_wdt_reset();
         }
+        ble_server_stop();
 
         ch_stop_task();
         uart_stop_task();
