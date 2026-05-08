@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_task_wdt.h"
+#include <inttypes.h>
 #include "uart.h"
 #include "constants.h"
 #include "ble_server.h"
@@ -123,7 +124,7 @@ void uart_stop_task()
 	if (uart_run_task) {
 		uart_run_task = false;
 
-		send_message_t msg;
+		send_message_t msg = {0};
 		xQueueSend(uart_receive_queue, &msg, portMAX_DELAY);
 		xSemaphoreTake(uart_receive_task_mutex, portMAX_DELAY);
 		xSemaphoreGive(uart_receive_task_mutex);
@@ -155,7 +156,7 @@ void uart_send(uint32_t txID, uint32_t rxID, uint8_t flags, const void* src, siz
 			free(msg.buffer);
 		}
 	} else {
-		ESP_LOGD(UART_TAG, "uart_send: malloc error size(%d)", msg.msg_length);
+		ESP_LOGD(UART_TAG, "uart_send: malloc error size(%" PRId32 ")", msg.msg_length);
 	}
 }
 
