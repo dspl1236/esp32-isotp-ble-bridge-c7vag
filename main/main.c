@@ -23,7 +23,9 @@
 #include "uart.h"
 #include "connection_handler.h"
 #include "isotp_bridge.h"
+#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
 #include "wifi_server.h"
+#endif
 #include "mcp2515.h"
 
 #define MAIN_TAG    "Main"
@@ -61,14 +63,19 @@ void app_main(void)
 #if SLEEP_MODE == 1
     while(1) {
 #endif
-        /* Select transport based on NVS wifi_mode setting */
+        /* Select transport */
+#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
         funkbridge_wifi_mode_t wifi_mode = wifi_get_mode();
         bool use_wifi = (wifi_mode != WIFI_MODE_DISABLED);
+#else
+        bool use_wifi = false;
+#endif
 
         if (use_wifi) {
-            /* WiFi transport — AP or Station */
+#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
             wifi_server_set_rx_callback(bridge_received_wifi);
             wifi_server_start();
+#endif
         } else {
             /* BLE transport */
             ble_server_callbacks callbacks = {
@@ -93,7 +100,9 @@ void app_main(void)
 
         /* Stop transport */
         if (use_wifi) {
+#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
             wifi_server_stop();
+#endif
         } else {
             ble_stop_advertising();
             while (ble_connected()) {
