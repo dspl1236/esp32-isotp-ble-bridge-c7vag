@@ -5,7 +5,7 @@
 #include "freertos/semphr.h"
 
 //global semaphore to sync start/stop of tasks
-SemaphoreHandle_t						sync_task_sem;
+extern SemaphoreHandle_t				sync_task_sem;
 
 //defines
 typedef int16_t							bool16;
