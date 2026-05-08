@@ -23,12 +23,15 @@
 #include "uart.h"
 #include "connection_handler.h"
 #include "isotp_bridge.h"
-#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
+#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
 #include "wifi_server.h"
 #endif
 #include "mcp2515.h"
 
 #define MAIN_TAG    "Main"
+
+// Storage for the global semaphore declared (extern) in constants.h
+SemaphoreHandle_t sync_task_sem;
 
 void app_main(void)
 {
@@ -64,7 +67,7 @@ void app_main(void)
     while(1) {
 #endif
         /* Select transport */
-#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
+#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
         funkbridge_wifi_mode_t wifi_mode = wifi_get_mode();
         bool use_wifi = (wifi_mode != WIFI_MODE_DISABLED);
 #else
@@ -72,7 +75,7 @@ void app_main(void)
 #endif
 
         if (use_wifi) {
-#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
+#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
             wifi_server_set_rx_callback(bridge_received_wifi);
             wifi_server_start();
 #endif
@@ -100,7 +103,7 @@ void app_main(void)
 
         /* Stop transport */
         if (use_wifi) {
-#ifdef CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
+#if CONFIG_FUNKBRIDGE_WIFI_DEFAULT_MODE
             wifi_server_stop();
 #endif
         } else {

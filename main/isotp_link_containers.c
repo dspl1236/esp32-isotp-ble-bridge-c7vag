@@ -13,6 +13,10 @@
 // Raw sniff toggle — controlled via BLE settings command BRG_SETTING_RAW_SNIFF
 uint8_t raw_sniff_enabled = 0;
 
+// Storage for globals declared (extern) in isotp_link_containers.h
+IsoTpLinkContainer isotp_link_containers[NUM_ISOTP_LINK_CONTAINERS];
+uint16_t isotp_link_container_id;
+
 // ─── Helper ──────────────────────────────────────────────────────────────────
 static void init_container(IsoTpLinkContainer *c, uint16_t number,
                             const char *name, uint32_t tx_id, uint32_t rx_id,
