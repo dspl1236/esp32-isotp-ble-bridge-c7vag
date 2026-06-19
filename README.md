@@ -1,3 +1,9 @@
+> # ⚠️ Archived — superseded
+> This repository is **archived and read-only**. It has been superseded by **[CerberusCAN](https://github.com/dspl1236/CerberusCAN)** — an on-device, request-level VAG VCI (USB) that replaces this ESP32 BLE bridge.
+> Kept for historical reference; no further updates.
+
+---
+
 # esp32-isotp-ble-bridge-c7vag
 
 **Fork of [Switchleg1/esp32-isotp-ble-bridge](https://github.com/Switchleg1/esp32-isotp-ble-bridge)**  
